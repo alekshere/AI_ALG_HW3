@@ -169,7 +169,10 @@ def entails(premise: Expr, conclusion: Expr) -> bool:
     combine = premise & negatedConclusion
 
     # Check if findModel returns False (indicating no model found -> entailment holds)
-    return findModel(combine) == False 
+    if not findModel(combine): 
+        return True
+    
+    return False
     "*** END YOUR CODE HERE ***"
 
 def plTrueInverse(assignments: Dict[Expr, bool], inverse_statement: Expr) -> bool:
@@ -580,7 +583,67 @@ def foodLogicPlan(problem) -> List:
     KB = []
 
     "*** BEGIN YOUR CODE HERE ***"
-    util.raiseNotDefined()
+    # Add to KB: Initial knowledge: Pacman’s initial location at timestep 0
+    KB.append(PropSymbolExpr(pacman_str, x0, y0, time = 0))
+
+    # Initialize Food[x,y]_t variables with the code PropSymbolExpr(food_str, x, y, time=t), where each variable is true if and only if there is a food at (x, y) at time t.
+    for x,y in food:
+        KB.append(PropSymbolExpr(food_str, x, y, time=0)) # start with the time t - beginning of the game
+
+    # for t in range(50). (Autograder will not test on layouts requiring ≥ 50 timesteps.)
+    for t in range(50):
+        # Print time step; this is to see that the code is running and how far it is.
+        print("Time step: " + str(t))
+        # Add to KB: Initial knowledge: Pacman can only be at exactlyOne of the locations in non_wall_coords at timestep t. This is similar to pacphysicsAxioms, but don’t use that method since we are using non_wall_coors when generating the list of possible locations in the first place (and walls_grid later).
+        positions = []
+
+        for x,y in non_wall_coords:
+            positions.append(PropSymbolExpr(pacman_str, x, y, time = t))
+
+        KB.append(exactlyOne(positions))
+
+        # Is there a satisfying assignment for the variables given the knowledge base so far? Use findModel and pass in the Goal Assertion and KB.
+        # Change the goal assertion: Your goal assertion sentence must be true if and only if all of the food have been eaten. This happens when   all Food[x,y]_t are false.
+        negated_food_list = []
+        for x,y in food:
+            negated_food_list.append(~PropSymbolExpr(food_str,x,y,time = t))
+
+        kb_food_conjoin = conjoin([conjoin(negated_food_list), conjoin(KB)])
+        goal_assertion = findModel(kb_food_conjoin)
+        # If there is, return a sequence of actions from start to goal using extractActionSequence.
+        # Here, Goal Assertion is the expression asserting that Pacman is at the goal at timestep t.
+        if (goal_assertion):
+            seq_of_actions = extractActionSequence(goal_assertion, actions)
+            return seq_of_actions
+
+        
+        # Add to KB: Pacman takes exactly one action per timestep.
+        possible_actions = []
+
+        for action in actions:
+            possible_actions.append(PropSymbolExpr(action, time = t))
+        
+        KB.append(exactlyOne(possible_actions))
+
+        # Add to KB: Transition Model sentences: call pacmanSuccessorAxiomSingle(...) for all possible pacman positions in non_wall_coords.
+        for x,y in non_wall_coords:
+            tm_sentence = pacmanSuccessorAxiomSingle(x,y, t+1, walls)
+            KB.append(tm_sentence)
+
+        # Add a food successor axiom: What is the relation between Food[x,y]_t+1 and Food[x,y]_t and Pacman[x,y]_t? The food successor axiom should only involve these three variables, for any given (x, y) and t. Think about what the transition model for the food variables looks like, and add these sentences to your knowledge base at each timestep.
+
+        # Solution:
+        # The food can be at x,y at t+1 if and only if there is food at x,y at t and pac man isn't there (x,y) at t
+        # \-> If there is food now, and pacman not in that cell, the it will be there next step too.
+        # \--> So: Food[x,y]_t+1 <-> Food[x,y]_t and not Pacman[x,y]_t
+
+        for x,y in food:
+            current_food = PropSymbolExpr(food_str,x,y,time=t)
+            next_food = PropSymbolExpr(food_str,x,y,time=t+1)
+            pacman_pos = PropSymbolExpr(pacman_str,x,y,time=t)
+
+            KB.append(next_food % (current_food & ~pacman_pos))
+    
     "*** END YOUR CODE HERE ***"
 
 #______________________________________________________________________________
